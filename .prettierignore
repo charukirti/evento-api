@@ -1,0 +1,6 @@
+dist/
+build/
+.bun
+node_modules/
+bun.lock
+drizzle
