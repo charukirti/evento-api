@@ -1,9 +1,18 @@
-import { Hono } from 'hono'
+import { Hono } from 'hono';
+import { errorHandler } from './middlewares/error-handler.middleware';
+import { customLogger } from './middlewares/logger.middleware';
 
-const app = new Hono()
+const app = new Hono();
+app.use(customLogger);
 
-app.get('/', (c) => {
-  return c.text('Hello Hono!')
-})
+app.get('/health', (c) => {
+  return c.text('Hello Hono!');
+});
 
-export default app
+app.notFound((c) => {
+  return c.json({ error: `${c.req.path} not found` }, 404);
+});
+
+app.onError(errorHandler);
+
+export default app;
