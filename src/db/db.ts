@@ -7,4 +7,4 @@ const pool = new Pool({
   idleTimeoutMillis: 30000,
 });
 
-const db = drizzle({ client: pool });
+export const db = drizzle({ client: pool });
