@@ -13,3 +13,6 @@ export type RefreshTokenPayload = {
   exp: number;
 };
 
+export type AppVariables = {
+  user: AccessTokenPayload;
+};

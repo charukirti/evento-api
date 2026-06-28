@@ -67,7 +67,7 @@ export async function register(data: RegisterInput) {
     refreshExpiresAt
   );
 
-  return { user, accessToken, refreshToken };
+  return { user, accessToken, refreshToken,refreshExpiresAt };
 }
 
 export async function login(data: LoginInput) {
@@ -115,6 +115,7 @@ export async function login(data: LoginInput) {
     },
     accessToken,
     refreshToken,
+    refreshExpiresAt
   };
 }
 
@@ -137,7 +138,7 @@ export async function logout(refreshToken: string) {
   }
 }
 
-export async function refreshToken(token: string) {
+export async function refresh(token: string) {
   const { sub, role, jti } = (await verify(
     token,
     env.JWT_REFRESH_SECRET,
@@ -174,5 +175,5 @@ export async function refreshToken(token: string) {
     refreshExpiresAt
   );
 
-  return { accessToken, refreshToken: newRefreshToken };
+  return { accessToken, refreshToken: newRefreshToken, refreshExpiresAt };
 }

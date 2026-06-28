@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { errorHandler } from './middlewares/error-handler.middleware';
 import { customLogger } from './middlewares/logger.middleware';
+import authRouter from './modules/auth/auth.routes';
 
 const app = new Hono();
 app.use(customLogger);
@@ -8,6 +9,8 @@ app.use(customLogger);
 app.get('/health', (c) => {
   return c.text('Hello Hono!');
 });
+
+app.route("/auth", authRouter)
 
 app.notFound((c) => {
   return c.json({ error: `${c.req.path} not found` }, 404);
