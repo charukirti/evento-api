@@ -5,7 +5,6 @@ import type { LoginInput, RegisterInput } from './auth.schema';
 import {
   ConflictException,
   InternalServerErrorException,
-  NotFoundException,
   UnauthorizedException,
 } from '../../libs/errors';
 import { generateAccessToken, generateRefreshToken } from '../../libs/tokens';
@@ -14,6 +13,23 @@ import { randomUUIDv7 } from 'bun';
 import { verify } from 'hono/jwt';
 import { env } from '../../config/env';
 import type { RefreshTokenPayload } from '../../libs/types';
+import { rolesTable } from '../../db/schema/roles';
+import { rolePermissionsTable } from '../../db/schema/role-permisions';
+import { permissionsTable } from '../../db/schema/permissions';
+
+
+async function getUserPermissions(roleId: string): Promise<string[]> {
+  const result = await db
+    .select({ name: permissionsTable.name })
+    .from(rolePermissionsTable)
+    .innerJoin(
+      permissionsTable,
+      eq(rolePermissionsTable.permissionId, permissionsTable.id)
+    )
+    .where(eq(rolePermissionsTable.roleId, roleId));
+
+  return result.map((r) => r.name);
+}
 
 export async function register(data: RegisterInput) {
   const { name, email, password } = data;
@@ -29,18 +45,27 @@ export async function register(data: RegisterInput) {
 
   const hashedPassword = await Bun.password.hash(password);
 
+ 
+  const [attendeeRole] = await db
+    .select()
+    .from(rolesTable)
+    .where(eq(rolesTable.name, 'attendee'));
+
+  if (!attendeeRole) {
+    throw new InternalServerErrorException('Roles not seeded');
+  }
+
   const jti = randomUUIDv7();
   const refreshExpiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
 
   const user = await db.transaction(async (tx) => {
     const [insertedUser] = await tx
       .insert(usersTable)
-      .values({ name, email, password: hashedPassword })
+      .values({ name, email, password: hashedPassword, roleId: attendeeRole.id })
       .returning({
         id: usersTable.id,
         name: usersTable.name,
         email: usersTable.email,
-        role: usersTable.role,
         createdAt: usersTable.createdAt,
       });
 
@@ -59,15 +84,10 @@ export async function register(data: RegisterInput) {
     return insertedUser;
   });
 
-  const accessToken = await generateAccessToken(user.id, user.role);
-  const refreshToken = await generateRefreshToken(
-    user.id,
-    user.role,
-    jti,
-    refreshExpiresAt
-  );
+  const accessToken = await generateAccessToken(user.id, []);
+  const refreshToken = await generateRefreshToken(user.id, jti, refreshExpiresAt);
 
-  return { user, accessToken, refreshToken,refreshExpiresAt };
+  return { user, accessToken, refreshToken, refreshExpiresAt };
 }
 
 export async function login(data: LoginInput) {
@@ -97,25 +117,22 @@ export async function login(data: LoginInput) {
     expiresAt: new Date(refreshExpiresAt),
   });
 
-  const accessToken = await generateAccessToken(user.id, user.role);
-  const refreshToken = await generateRefreshToken(
-    user.id,
-    user.role,
-    jti,
-    refreshExpiresAt
-  );
+  
+  const permissions = await getUserPermissions(user.roleId);
+
+  const accessToken = await generateAccessToken(user.id, permissions);
+  const refreshToken = await generateRefreshToken(user.id, jti, refreshExpiresAt);
 
   return {
     user: {
       id: user.id,
       name: user.name,
       email: user.email,
-      role: user.role,
       createdAt: user.createdAt,
     },
     accessToken,
     refreshToken,
-    refreshExpiresAt
+    refreshExpiresAt,
   };
 }
 
@@ -139,7 +156,7 @@ export async function logout(refreshToken: string) {
 }
 
 export async function refresh(token: string) {
-  const { sub, role, jti } = (await verify(
+  const { sub, jti } = (await verify(
     token,
     env.JWT_REFRESH_SECRET,
     'HS256'
@@ -167,13 +184,20 @@ export async function refresh(token: string) {
     });
   });
 
-  const accessToken = await generateAccessToken(sub, role);
-  const newRefreshToken = await generateRefreshToken(
-    sub,
-    role,
-    newJti,
-    refreshExpiresAt
-  );
+  // fetch user to get roleId, then fetch permissions
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, sub));
+
+  if (!user) {
+    throw new UnauthorizedException('Not authenticated');
+  }
+
+  const permissions = await getUserPermissions(user.roleId);
+
+  const accessToken = await generateAccessToken(sub, permissions);
+  const newRefreshToken = await generateRefreshToken(sub, newJti, refreshExpiresAt);
 
   return { accessToken, refreshToken: newRefreshToken, refreshExpiresAt };
 }
