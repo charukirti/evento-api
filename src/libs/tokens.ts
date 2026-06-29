@@ -1,17 +1,17 @@
 import { randomUUIDv7 } from 'bun';
 import { sign } from 'hono/jwt';
 import { env } from '../config/env';
-import type { UserRole } from './types';
+
 
 
 
 export async function generateAccessToken(
   userId: string,
-  role: UserRole
+  permissions: string[]
 ): Promise<string> {
   const payload = {
     sub: userId,
-    role,
+    permissions,
     exp: Math.floor(Date.now() / 1000) + 60 * 15,
   };
 
@@ -22,13 +22,12 @@ export async function generateAccessToken(
 
 export async function generateRefreshToken(
   userId: string,
-  role: UserRole,
+  
   jti: string,
   expiresAt: number
 ): Promise<string> {
   const payload = {
     sub: userId,
-    role,
     jti,
     exp: Math.floor(expiresAt / 1000),
   };
