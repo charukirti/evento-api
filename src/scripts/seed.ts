@@ -2,6 +2,8 @@ import { db } from '../db/db';
 import { permissionsTable } from '../db/schema/permissions';
 import { rolesTable } from '../db/schema/roles';
 import { rolePermissionsTable } from '../db/schema/role-permisions';
+import { usersTable } from '../db/schema';
+import { eq } from 'drizzle-orm';
 
 function getRequiredId(
   map: Record<string, string | undefined>,
@@ -101,7 +103,15 @@ export async function seed() {
     },
   ];
 
-  await db.insert(rolePermissionsTable).values(rolePermissions).onConflictDoNothing();
+  await db
+    .insert(rolePermissionsTable)
+    .values(rolePermissions)
+    .onConflictDoNothing();
+
+  await db
+    .update(usersTable)
+    .set({ roleId: '38710070-9ab6-4d66-b9ab-699fd04c7821' })
+    .where(eq(usersTable.id, '8ac62dfc-a26e-48a8-b211-15d40cfffd38'));
 }
 
 seed()
