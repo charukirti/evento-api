@@ -1,10 +1,10 @@
-import type { Context, Next } from 'hono';
+import { createMiddleware } from 'hono/factory';
 import { UnauthorizedException } from '../libs/errors';
 import { verify } from 'hono/jwt';
 import { env } from '../config/env';
 import type { AccessTokenPayload } from '../libs/types';
 
-export async function authMiddleware(c: Context, next: Next) {
+export const authMiddleware = createMiddleware(async (c, next) => {
   const authHeader = c.req.header('Authorization');
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -25,4 +25,4 @@ export async function authMiddleware(c: Context, next: Next) {
   }
 
   await next();
-}
+});
