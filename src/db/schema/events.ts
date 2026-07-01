@@ -7,8 +7,10 @@ import {
   timestamp,
   text,
   pgEnum,
+  check,
 } from 'drizzle-orm/pg-core';
 import { usersTable } from './users';
+import { sql } from 'drizzle-orm';
 
 export const eventCategoryEnum = pgEnum('event_category', [
   'music',
@@ -25,27 +27,36 @@ export const eventStatusEnum = pgEnum('event_status', [
   'cancelled',
   'completed',
 ]);
-export const eventsTable = pgTable('events', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  title: varchar('title').notNull(),
-  description: text('description').notNull(),
-  category: eventCategoryEnum('category').notNull(),
-  location: varchar('location').notNull(),
-  date: timestamp('date').notNull(),
-  status: eventStatusEnum('status').notNull().default('draft'),
-  totalSeats: integer('total_seats').notNull(),
-  availableSeats: integer('available_seats').notNull(),
-  posterUrl: varchar('poster_url'),
-  organizerId: uuid('organizer_id')
-    .references(() => usersTable.id, { onDelete: 'cascade' })
-    .notNull(),
-  price: numeric('price', { precision: 10, scale: 2 }).notNull().default('0'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at')
-    .defaultNow()
-    .notNull()
-    .$onUpdateFn(() => new Date()),
-});
+export const eventsTable = pgTable(
+  'events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    title: varchar('title').notNull(),
+    description: text('description').notNull(),
+    category: eventCategoryEnum('category').notNull(),
+    location: varchar('location').notNull(),
+    startTime: timestamp('start_time', { withTimezone: true }).notNull(),
+    endTime: timestamp('end_time', { withTimezone: true }).notNull(),
+    status: eventStatusEnum('status').notNull().default('draft'),
+    totalSeats: integer('total_seats').notNull(),
+    availableSeats: integer('available_seats').notNull(),
+    posterUrl: varchar('poster_url'),
+    organizerId: uuid('organizer_id')
+      .references(() => usersTable.id, { onDelete: 'cascade' })
+      .notNull(),
+    price: numeric('price', { precision: 10, scale: 2 }).notNull().default('0'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at')
+      .defaultNow()
+      .notNull()
+      .$onUpdateFn(() => new Date()),
+  },
+  (table) => [
+    check('seat_zero_check', sql`${table.availableSeats} >= 0`),
+    check('seat_max_check', sql`${table.availableSeats} <= ${table.totalSeats}`),
+    check('time_check', sql`${table.endTime} > ${table.startTime}`)
+  ]
+);
 
 export type NewEvent = typeof eventsTable.$inferInsert;
 export type Event = typeof eventsTable.$inferSelect;
